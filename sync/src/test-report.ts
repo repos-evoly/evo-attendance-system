@@ -68,9 +68,6 @@ threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 const fourDaysAgo = new Date(today);
 fourDaysAgo.setDate(fourDaysAgo.getDate() - 4);
 
-const fiveDaysAgo = new Date(today);
-fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
-
 const sixDaysAgo = new Date(today);
 sixDaysAgo.setDate(sixDaysAgo.getDate() - 6);
 
@@ -102,8 +99,23 @@ console.log('Test 3: Single punch today...');
 insertPunch('1', today, 8 * 60); // 08:00
 
 // Test 4: No punch on a weekday
+// Fixed reference date and fixed window so the result never depends on the
+// current date's day of week. No punches are inserted for pin 2 in this window.
 console.log('Test 4: No punch on a weekday...');
-// (no punches for pin 2 on fiveDaysAgo)
+const TEST4_REFERENCE_DATE = new Date(2026, 0, 5); // fixed reference date: Monday 2026-01-05
+const test4From = new Date(TEST4_REFERENCE_DATE);
+test4From.setHours(0, 0, 0, 0);
+const test4To = new Date(test4From);
+test4To.setDate(test4To.getDate() + 6); // fixed window 2026-01-05 .. 2026-01-11
+// Take the first configured weekday (non-weekend) inside the fixed window.
+const weekdayDay = new Date(test4From);
+while (DEFAULT_CONFIG.weekendDays.includes(weekdayDay.getDay())) {
+  weekdayDay.setDate(weekdayDay.getDate() + 1);
+}
+const weekdayDateStr = formatDate(weekdayDay);
+console.log('  Using fixed window ' + formatDate(test4From) + ' to ' + formatDate(test4To));
+console.log('  Using ' + weekdayDateStr + ' as weekday test day (weekday: ' + weekdayDay.getDay() + ')');
+// No punches on this weekday for pin 2
 
 // Test 5: No punch on a weekend day
 // Fixed reference date and fixed window so the result never depends on the
@@ -206,8 +218,9 @@ if (singlePunchTodayRow) {
   console.log('  ✗ FAIL: Row not found\n');
 }
 
-// Test 4: No punch on weekday
-const noPunchWeekdayRow = reportRows.find(r => r.pin === '2' && r.date === formatDate(fiveDaysAgo));
+// Test 4: No punch on weekday (own report over the fixed window, independent of today)
+const test4Report = buildReport(db, test4From, test4To, DEFAULT_CONFIG);
+const noPunchWeekdayRow = test4Report.reportRows.find(r => r.pin === '2' && r.date === weekdayDateStr);
 console.log('Test 4: No punch on weekday');
 if (noPunchWeekdayRow) {
   console.log('  punches: ' + noPunchWeekdayRow.punches);
