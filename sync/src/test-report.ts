@@ -74,9 +74,6 @@ fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
 const sixDaysAgo = new Date(today);
 sixDaysAgo.setDate(sixDaysAgo.getDate() - 6);
 
-const sevenDaysAgo = new Date(today);
-sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
 const eightDaysAgo = new Date(today);
 eightDaysAgo.setDate(eightDaysAgo.getDate() - 8);
 
@@ -109,13 +106,21 @@ console.log('Test 4: No punch on a weekday...');
 // (no punches for pin 2 on fiveDaysAgo)
 
 // Test 5: No punch on a weekend day
+// Fixed reference date and fixed window so the result never depends on the
+// current date's day of week. No punches are inserted for pin 2 in this window.
 console.log('Test 5: No punch on a weekend day...');
-// Find a weekend day in the range
-const weekendDay = new Date(sevenDaysAgo);
-while (weekendDay.getDay() !== 5 && weekendDay.getDay() !== 6) {
-  weekendDay.setDate(weekendDay.getDate() - 1);
+const TEST5_REFERENCE_DATE = new Date(2026, 0, 5); // fixed reference date: Monday 2026-01-05
+const test5From = new Date(TEST5_REFERENCE_DATE);
+test5From.setHours(0, 0, 0, 0);
+const test5To = new Date(test5From);
+test5To.setDate(test5To.getDate() + 6); // fixed window 2026-01-05 .. 2026-01-11
+// Take the first configured weekend day inside the fixed window.
+const weekendDay = new Date(test5From);
+while (!DEFAULT_CONFIG.weekendDays.includes(weekendDay.getDay())) {
+  weekendDay.setDate(weekendDay.getDate() + 1);
 }
 const weekendDateStr = formatDate(weekendDay);
+console.log('  Using fixed window ' + formatDate(test5From) + ' to ' + formatDate(test5To));
 console.log('  Using ' + weekendDateStr + ' as weekend test day (weekday: ' + weekendDay.getDay() + ')');
 // No punches on this weekend day for pin 2
 
@@ -214,8 +219,9 @@ if (noPunchWeekdayRow) {
   console.log('  ✗ FAIL: Row not found\n');
 }
 
-// Test 5: No punch on weekend
-const noPunchWeekendRow = reportRows.find(r => r.pin === '2' && r.date === weekendDateStr);
+// Test 5: No punch on weekend (own report over the fixed window, independent of today)
+const test5Report = buildReport(db, test5From, test5To, DEFAULT_CONFIG);
+const noPunchWeekendRow = test5Report.reportRows.find(r => r.pin === '2' && r.date === weekendDateStr);
 console.log('Test 5: No punch on weekend');
 if (noPunchWeekendRow) {
   console.log('  punches: ' + noPunchWeekendRow.punches);
