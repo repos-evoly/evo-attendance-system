@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -16,13 +17,29 @@
 # next.js
 /.next/
 /out/
+out/
 
 # production
 /build
 
+# device sync service: a separate process with its own node_modules and artifacts
+sync/node_modules
+sync/data
+sync/out
+
+# local artifacts and data exports
+data/
+dumps/
+*.db
+*.csv
+*.xlsx
+
 # misc
 .DS_Store
 *.pem
+
+# Windows reserved device name (can be created accidentally by shell redirection)
+nul
 
 # debug
 npm-debug.log*
@@ -30,8 +47,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files: never commit real values, but keep the example
 .env*
+!.env.example
 
 # vercel
 .vercel
