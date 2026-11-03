@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:boundaries": "node scripts/check-boundaries.mjs",
-    "check": "tsc --noEmit && eslint && vitest run && next build && node scripts/check-boundaries.mjs"
+    "check:sync": "cd sync && npm run test-allowlist && npm run test-safe-client && npm run test-user-encoding && npm run test-db && npm run test-sync-guards && npm run test-report && npm run test-employee-set-active && npm run test-data-redaction && npm run test-integration && npx tsc --noEmit",
+    "check": "tsc --noEmit && eslint && vitest run && next build && node scripts/check-boundaries.mjs && npm run check:sync"
   },
   "dependencies": {
     "next": "16.4.4",
