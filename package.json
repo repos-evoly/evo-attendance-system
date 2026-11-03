@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "tsc --noEmit && eslint && vitest run && next build"
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "check": "tsc --noEmit && eslint && vitest run && next build && node scripts/check-boundaries.mjs"
   },
   "dependencies": {
     "next": "16.4.4",
