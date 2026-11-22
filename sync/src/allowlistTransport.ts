@@ -124,6 +124,25 @@ export function createSafeZKClientWithAllowlist(
     commKey: 0,
   });
 
+  // Enforce TCP-only operation.
+  //
+  // The library's connect() falls back to UDP when the TCP connection is
+  // refused, and that UDP transport is NOT covered by the socket-level
+  // allowlist patched below. Neutralize the UDP transport so a fallback can
+  // never bypass the command allowlist: if TCP fails, the connection fails
+  // closed instead of silently switching to an unprotected transport.
+  const udpTransport = (client as any).udp;
+  if (!udpTransport || typeof udpTransport.connect !== 'function') {
+    throw new Error(
+      'FAIL CLOSED: Cannot locate the UDP transport to disable. TCP-only enforcement failed.',
+    );
+  }
+  udpTransport.connect = async function (): Promise<void> {
+    throw new Error(
+      'FAIL CLOSED: UDP fallback is disabled (TCP-only). The TCP connection failed, so no connection was made.',
+    );
+  };
+
   // Store original connect method
   const originalConnect = client.connect.bind(client);
 

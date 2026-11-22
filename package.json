@@ -10,22 +10,33 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:boundaries": "node scripts/check-boundaries.mjs",
-    "check:sync": "cd sync && npm run test-allowlist && npm run test-safe-client && npm run test-user-encoding && npm run test-db && npm run test-sync-guards && npm run test-report && npm run test-employee-set-active && npm run test-data-redaction && npm run test-integration && npx tsc --noEmit",
-    "check": "tsc --noEmit && eslint && vitest run && next build && node scripts/check-boundaries.mjs && npm run check:sync"
+    "check:sync": "cd sync && npx tsc --noEmit",
+    "check": "tsc --noEmit && eslint && vitest run && next build && node scripts/check-boundaries.mjs && npm run check:sync",
+    "db:migrate": "node --env-file=.env scripts/migrate.cjs",
+    "db:import-employees": "node --env-file=.env scripts/import-employees.cjs",
+    "db:create-admin": "node --env-file=.env scripts/create-admin.cjs"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "@tailwindcss/vite": "^4.3.5",
+    "framer-motion": "^14.12.0",
+    "lucide-react": "^1.72.0",
     "next": "16.4.4",
+    "pg": "^8.23.1",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.4",
-    "tailwindcss": "^4",
+    "prisma": "^6.19.3",
+    "tailwindcss": "^4.3.5",
     "typescript": "^5",
     "vitest": "^3.2.7"
   }

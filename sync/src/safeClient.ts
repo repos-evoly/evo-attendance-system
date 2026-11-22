@@ -1,7 +1,11 @@
 import { ZKTecoClient } from '@graphland/zkteco';
 import type { DeviceInfo } from '@graphland/zkteco';
 import { createSafeZKClientWithAllowlist } from './allowlistTransport.js';
-import { parseUsersFromBufferWithCorrectEncoding } from './userEncoding.js';
+import {
+  parseUsersFromBufferWithCorrectEncoding,
+  parseUsersDetailedFromBuffer,
+  type DeviceUserDetail,
+} from './userEncoding.js';
 
 /**
  * Read-only wrapper for ZKTeco MB20 device.
@@ -20,6 +24,7 @@ export interface ISafeZKClient {
   getInfo(): Promise<DeviceInfo>;
   getTime(): Promise<Date>;
   getUsers(): Promise<Array<{ pin: string; name: string }>>;
+  getUsersDetailed(): Promise<DeviceUserDetail[]>;
   getAttendances(onProgress?: (received: number, total: number) => void): Promise<Array<{ deviceUserId: string; recordTime: Date; punch: number; status: number }>>;
 }
 
@@ -85,6 +90,25 @@ export function createSafeZKClient(
       // Parse with Windows-1256 decoding
       const packetSize = transport.userPacketSize || 72;
       return parseUsersFromBufferWithCorrectEncoding(data, packetSize);
+    },
+
+    /**
+     * Get all users with the full read-only field set the device exposes
+     * (uid, pin, name, role, card number, group, timezones, password-populated
+     * flag). Uses the SAME read path as getUsers() — no new device commands and
+     * no change to the wire-level allowlist. The password value is never returned.
+     */
+    async getUsersDetailed(): Promise<DeviceUserDetail[]> {
+      const transport = (client as any).tcp;
+      if (!transport) {
+        throw new Error('Transport not available');
+      }
+
+      const { data, err } = await transport.getUsers();
+      if (err) throw err;
+
+      const packetSize = transport.userPacketSize || 72;
+      return parseUsersDetailedFromBuffer(data, packetSize);
     },
 
     /**

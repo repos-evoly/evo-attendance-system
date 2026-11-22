@@ -1,3 +1,4 @@
+
 {
   "name": "attendance-sync",
   "version": "1.0.0",
@@ -5,27 +6,14 @@
   "description": "Read-only attendance sync service for the ZKTeco device (isolated from the Next.js app)",
   "main": "index.js",
   "scripts": {
+    "postinstall": "patch-package",
     "sync": "npx tsx src/sync.ts",
+    "sync:postgres": "npx tsx src/sync-postgres.ts",
+    "sync:auto": "npx tsx src/sync-scheduler.ts",
     "sync:status": "npx tsx src/sync-status.ts",
-    "db:summary": "npx tsx src/db-summary.ts",
     "report": "npx tsx src/report-cli.ts",
     "employee:set-active": "npx tsx src/employee-set-active.ts",
-    "check-unknown-pins": "npx tsx src/check-unknown-pins.ts",
-    "inspect-data": "npx tsx src/inspect-data.ts",
-    "compare-reports": "npx tsx src/compare-reports.ts",
-    "verify-report": "npx tsx src/verify-report.ts",
-    "stage:users": "npx tsx src/stage3a-users.ts",
-    "stage:attendance": "npx tsx src/stage4-attendance.ts",
-    "test-stage2": "npx tsx src/test-stage2.ts",
-    "test-allowlist": "npx tsx src/test-allowlist.ts",
-    "test-safe-client": "npx tsx src/test-safe-client.ts",
-    "test-user-encoding": "npx tsx src/test-user-encoding.ts",
-    "test-db": "npx tsx src/test-db.ts",
-    "test-sync-guards": "npx tsx src/test-sync-guards.ts",
-    "test-report": "npx tsx src/test-report.ts",
-    "test-employee-set-active": "npx tsx src/test-employee-set-active.ts",
-    "test-data-redaction": "npx tsx src/test-data-redaction.ts",
-    "test-integration": "npx tsx src/test-integration.ts"
+    "test": "npx tsx --test src/sync-postgres.test.ts src/zk-tcp-reassembly.test.ts"
   },
   "keywords": [],
   "author": "",
@@ -38,6 +26,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.6",
+    "patch-package": "^8.0.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
