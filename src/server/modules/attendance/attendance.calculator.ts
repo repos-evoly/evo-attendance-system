@@ -135,7 +135,7 @@ function libyaDate(timestamp: string): Date {
 }
 
 /** True when `date` is on or after the hire date (or the hire date is unknown). */
-function isWithinEmploymentPeriod(
+export function isWithinEmploymentPeriod(
   hireDate: string | null | undefined,
   date: string,
 ): boolean {
@@ -252,6 +252,11 @@ export function calculateDailyAttendance({
   const isToday = date === today;
   const isPastDate = date < today;
 
+  // Exclude employees whose hire date is after the report date
+  const eligibleEmployees = employees.filter((employee) =>
+    isWithinEmploymentPeriod(employee.hireDate, date)
+  );
+
   const leavesByEmployee = groupLeavesByEmployee(leaves);
 
   // Group punches by device user ID with punchType.
@@ -272,7 +277,7 @@ export function calculateDailyAttendance({
     punchesByUser.set(punch.deviceUserId, userPunches);
   }
 
-  return employees.map((employee) => {
+  return eligibleEmployees.map((employee) => {
     // Sort punches chronologically.
     const userPunches = (
       punchesByUser.get(String(employee.employeeId)) ?? []

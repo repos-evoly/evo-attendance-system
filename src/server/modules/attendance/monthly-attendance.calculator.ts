@@ -1,5 +1,6 @@
 import {
   calculateDailyAttendance,
+  isWithinEmploymentPeriod,
   type AttendanceStatus,
   type DailyAttendanceRow,
 } from "./attendance.calculator";
@@ -163,6 +164,12 @@ export function calculateMonthlyAttendance({
   const days = getDaysInMonth(month);
   const today = getLibyaToday();
 
+  // Build a lookup map for hire dates to avoid repeated array searches
+  const hireDateByEmployee = new Map<number, string | null>();
+  for (const employee of employees) {
+    hireDateByEmployee.set(employee.employeeId, employee.hireDate ?? null);
+  }
+
   const byEmployee = new Map<number, {
     lateDays: number;
     reviewDays: number;
@@ -198,6 +205,12 @@ export function calculateMonthlyAttendance({
       const current = byEmployee.get(row.employeeId);
 
       if (!current) {
+        continue;
+      }
+
+      // Skip dates before the employee's hire date
+      const hireDate = hireDateByEmployee.get(row.employeeId);
+      if (!isWithinEmploymentPeriod(hireDate, date)) {
         continue;
       }
 

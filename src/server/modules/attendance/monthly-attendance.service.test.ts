@@ -40,6 +40,28 @@ const employee: AttendanceEmployee = {
   hireDate: "2019-01-01",
 };
 
+const employeeWithHireDate: AttendanceEmployee = {
+  employeeId: 9,
+  fullName: "Suleiman Al-Zalawi",
+  shiftId: 1,
+  shiftName: "Morning Shift",
+  timeIn: "09:00:00",
+  timeOut: "15:00:00",
+  allowanceMinutes: 15,
+  hireDate: "2020-01-10",
+};
+
+const employeeWithoutHireDate: AttendanceEmployee = {
+  employeeId: 10,
+  fullName: "No Hire Date",
+  shiftId: 1,
+  shiftName: "Morning Shift",
+  timeIn: "09:00:00",
+  timeOut: "15:00:00",
+  allowanceMinutes: 15,
+  hireDate: null,
+};
+
 const leaveDetail = {
   employeeId: 1,
   dateFrom: "2020-01-01",
@@ -117,5 +139,46 @@ describe("getMonthlyAttendance leave details", () => {
 
     expect(withoutLeave.employees[0]?.requiredMinutes).toBe(22 * 360);
     expect(withLeave.employees[0]?.requiredMinutes).toBe(17 * 360);
+  });
+});
+
+describe("getMonthlyAttendance hire date eligibility", () => {
+  it("excludes days before hire date from monthly totals", async () => {
+    mockSource.mockResolvedValue({
+      employees: [employeeWithHireDate],
+      punches: [],
+    });
+
+    const result = await getMonthlyAttendance(MONTH);
+
+    // Employee hired on 2020-01-10, so only days from 2020-01-10 onward count
+    // January 2020 has 22 working days total (Fri/Sat are weekend)
+    // Days 2020-01-01 to 2020-01-09 = 7 working days excluded
+    // Expected: 22 - 7 = 15 working days * 360 minutes = 5400
+    expect(result.employees[0]?.requiredMinutes).toBe(15 * 360);
+  });
+
+  it("includes hire date and subsequent dates in monthly totals", async () => {
+    mockSource.mockResolvedValue({
+      employees: [employeeWithHireDate],
+      punches: [],
+    });
+
+    const result = await getMonthlyAttendance(MONTH);
+
+    // Should have attendance from hire date onward
+    expect(result.employees[0]?.requiredMinutes).toBeGreaterThan(0);
+  });
+
+  it("preserves existing behavior for employees with null hire date", async () => {
+    mockSource.mockResolvedValue({
+      employees: [employeeWithoutHireDate],
+      punches: [],
+    });
+
+    const result = await getMonthlyAttendance(MONTH);
+
+    // All 22 working days should count for employee without hire date
+    expect(result.employees[0]?.requiredMinutes).toBe(22 * 360);
   });
 });

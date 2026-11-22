@@ -193,3 +193,81 @@ describe("getDailyAttendance leave details", () => {
     expect(result.employees[0]?.leave).toBeNull();
   });
 });
+
+describe("getDailyAttendance hire date eligibility", () => {
+  const HIRED_AFTER_DATE = "2026-09-02";
+  const HIRE_DATE = "2026-09-03";
+  const HIRE_DATE_AFTER = "2026-09-07"; // Monday (working day)
+
+  const employeeWithHireDate: AttendanceEmployee = {
+    employeeId: 9,
+    fullName: "Suleiman Al-Zalawi",
+    shiftId: 1,
+    shiftName: "Morning Shift",
+    timeIn: "09:00:00",
+    timeOut: "15:00:00",
+    allowanceMinutes: 15,
+    hireDate: HIRE_DATE,
+  };
+
+  const employeeWithoutHireDate: AttendanceEmployee = {
+    employeeId: 10,
+    fullName: "No Hire Date",
+    shiftId: 1,
+    shiftName: "Morning Shift",
+    timeIn: "09:00:00",
+    timeOut: "15:00:00",
+    allowanceMinutes: 15,
+    hireDate: null,
+  };
+
+  it("excludes an employee from the daily report on a date before their hire date", async () => {
+    mockGetDailyAttendanceSource.mockResolvedValue({
+      employees: [employeeWithHireDate],
+      punches: [],
+    });
+
+    const result = await getDailyAttendance(HIRED_AFTER_DATE);
+
+    expect(result.employees).toHaveLength(0);
+  });
+
+  it("includes an employee on their hire date", async () => {
+    mockGetDailyAttendanceSource.mockResolvedValue({
+      employees: [employeeWithHireDate],
+      punches: [],
+    });
+
+    const result = await getDailyAttendance(HIRE_DATE);
+
+    expect(result.employees).toHaveLength(1);
+    expect(result.employees[0]?.employeeId).toBe(9);
+    expect(result.employees[0]?.status).toBe("ABSENT");
+  });
+
+  it("includes an employee on dates after their hire date", async () => {
+    mockGetDailyAttendanceSource.mockResolvedValue({
+      employees: [employeeWithHireDate],
+      punches: [],
+    });
+
+    const result = await getDailyAttendance(HIRE_DATE_AFTER);
+
+    expect(result.employees).toHaveLength(1);
+    expect(result.employees[0]?.employeeId).toBe(9);
+    expect(result.employees[0]?.status).toBe("ABSENT");
+  });
+
+  it("preserves existing behavior for employees with null hire date", async () => {
+    mockGetDailyAttendanceSource.mockResolvedValue({
+      employees: [employeeWithoutHireDate],
+      punches: [],
+    });
+
+    const result = await getDailyAttendance(HIRED_AFTER_DATE);
+
+    expect(result.employees).toHaveLength(1);
+    expect(result.employees[0]?.employeeId).toBe(10);
+    expect(result.employees[0]?.status).toBe("ABSENT");
+  });
+});
