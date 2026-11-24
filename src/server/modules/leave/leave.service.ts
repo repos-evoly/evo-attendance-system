@@ -7,6 +7,9 @@ import {
   listLeavePeriods,
 } from "./leave.repository";
 import { findOverlappingLeave } from "./leave.utils";
+import { isWeekend } from "../attendance/attendance.calculator";
+import { refreshAndPersistDailyAttendance } from "../attendance/attendance.service";
+import { getLibyaToday } from "../attendance/monthly-attendance.calculator";
 import type {
   CancelEmployeeLeaveInput,
   CreateEmployeeLeaveInput,
@@ -24,8 +27,71 @@ export interface LeaveError {
   message: string;
 }
 
+/**
+ * Outcome of the attendance refresh that follows a leave mutation. The leave
+ * itself is already committed when this runs, so failures are collected per
+ * date instead of aborting the remaining refreshes; the route turns a
+ * non-empty `failedDates` into an explicit error response.
+ */
+export interface AttendanceRefreshOutcome {
+  /** Non-weekend dates up to today that were recalculated and persisted. */
+  attemptedDates: number;
+  /** Dates whose refresh threw; each is also logged server-side. */
+  failedDates: string[];
+}
+
+/** Every `YYYY-MM-DD` from `start` to `end` inclusive (both validated dates). */
+function* datesBetween(start: string, end: string): Generator<string> {
+  const cursor = new Date(`${start}T00:00:00.000Z`);
+  const last = new Date(`${end}T00:00:00.000Z`);
+
+  while (cursor <= last) {
+    yield cursor.toISOString().slice(0, 10);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+}
+
+/**
+ * Recalculates and persists attendance for every affected date of a leave:
+ * each non-weekend day from `dateFrom` up to `min(dateTo, today)`. Future
+ * dates are skipped because their attendance is still PENDING and will be
+ * persisted when their own daily report is requested. Weekend days are
+ * skipped because `persistDailyAttendance` would discard their WEEKEND rows
+ * anyway.
+ */
+async function refreshAttendanceForLeave(
+  leave: EmployeeLeaveRecord,
+): Promise<AttendanceRefreshOutcome> {
+  const today = getLibyaToday();
+  const end = leave.dateTo < today ? leave.dateTo : today;
+  const failedDates: string[] = [];
+  let attemptedDates = 0;
+
+  for (const date of datesBetween(leave.dateFrom, end)) {
+    if (isWeekend(date)) continue;
+
+    attemptedDates += 1;
+
+    try {
+      await refreshAndPersistDailyAttendance(date);
+    } catch (error) {
+      console.error(
+        `Attendance refresh failed for ${date} after leave ${leave.leaveId}:`,
+        error,
+      );
+      failedDates.push(date);
+    }
+  }
+
+  return { attemptedDates, failedDates };
+}
+
 export type CreateLeaveResult =
-  | { ok: true; leave: EmployeeLeaveRecord }
+  | {
+      ok: true;
+      leave: EmployeeLeaveRecord;
+      attendanceRefresh: AttendanceRefreshOutcome;
+    }
   | { ok: false; error: LeaveError };
 
 /**
@@ -73,7 +139,10 @@ export async function createLeave(
     };
   }
 
-  return { ok: true, leave: await createEmployeeLeave(input) };
+  const leave = await createEmployeeLeave(input);
+  const attendanceRefresh = await refreshAttendanceForLeave(leave);
+
+  return { ok: true, leave, attendanceRefresh };
 }
 
 /** Lists leave records (active and cancelled), optionally for one employee. */
@@ -92,7 +161,11 @@ export interface CancelLeaveError {
 }
 
 export type CancelLeaveResult =
-  | { ok: true; leave: EmployeeLeaveRecord }
+  | {
+      ok: true;
+      leave: EmployeeLeaveRecord;
+      attendanceRefresh: AttendanceRefreshOutcome;
+    }
   | { ok: false; error: CancelLeaveError };
 
 /**
@@ -141,5 +214,7 @@ export async function cancelLeave(
     };
   }
 
-  return { ok: true, leave: cancelled };
+  const attendanceRefresh = await refreshAttendanceForLeave(cancelled);
+
+  return { ok: true, leave: cancelled, attendanceRefresh };
 }

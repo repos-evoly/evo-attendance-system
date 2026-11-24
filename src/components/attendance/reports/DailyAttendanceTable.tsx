@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   ArrowRight,
   CalendarPlus,
@@ -69,10 +69,12 @@ interface DailyAttendanceTableProps {
   canManageLeaves?: boolean;
   /** Reloads the daily data after a waiver change. */
   onRefetch: () => void;
+  /** Period controls (date picker + refresh) rendered before the filters. */
+  controls?: ReactNode;
 }
 
 const CONTROL_CLASS =
-  "glass-card rounded-2xl py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:ring-2 focus:ring-violet-300";
+  "glass-card h-11 rounded-2xl text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:ring-2 focus:ring-violet-300";
 
 /**
  * Daily attendance table with client-side name search and status filtering
@@ -88,6 +90,7 @@ export function DailyAttendanceTable({
   canManageWaivers = true,
   canManageLeaves = true,
   onRefetch,
+  controls,
 }: DailyAttendanceTableProps) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("ALL");
@@ -146,56 +149,6 @@ export function DailyAttendanceTable({
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative w-full max-w-sm">
-          <Search
-            size={18}
-            aria-hidden
-            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-          />
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search by employee name…"
-            aria-label="Search employees"
-            disabled={isLoading}
-            className={`${CONTROL_CLASS} w-full pl-11 pr-4 disabled:cursor-not-allowed disabled:opacity-60`}
-          />
-        </div>
-
-        <label className="sr-only" htmlFor="daily-status-filter">
-          Filter by attendance status
-        </label>
-        <select
-          id="daily-status-filter"
-          value={status}
-          onChange={(event) => setStatus(event.target.value as StatusFilter)}
-          disabled={isLoading}
-          className={`${CONTROL_CLASS} px-3.5 pr-8 disabled:cursor-not-allowed disabled:opacity-60`}
-        >
-          {STATUS_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {option === "ALL" ? "All statuses" : getStatusLabel(option)}
-            </option>
-          ))}
-        </select>
-
-        {hasFilters && (
-          <button
-            type="button"
-            onClick={() => {
-              setQuery("");
-              setStatus("ALL");
-            }}
-            className="inline-flex items-center gap-1.5 rounded-2xl px-3 py-3 text-sm font-medium text-slate-500 transition-colors hover:text-violet-600"
-          >
-            <X size={15} />
-            Clear filters
-          </button>
-        )}
-      </div>
-
       {error && (
         <div
           role="alert"
@@ -206,73 +159,133 @@ export function DailyAttendanceTable({
         </div>
       )}
 
-      <div className="glass-card overflow-hidden rounded-3xl">
-        {isLoading ? (
-          <ReportLoadingState message="Loading daily attendance…" />
-        ) : filtered.length === 0 ? (
-          <ReportEmptyState
-            title={hasFilters ? "No matching employees" : "No attendance for this date"}
-            message={
-              hasFilters
-                ? "Try a different name or status filter."
-                : "There are no scheduled employees to display for this date."
-            }
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200/70 text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-3.5 pl-5 pr-4 font-semibold">Employee</th>
-                  <th className="hidden py-3.5 pr-4 font-semibold md:table-cell">
-                    ID
-                  </th>
-                  <th className="hidden py-3.5 pr-4 font-semibold xl:table-cell">
-                    Shift
-                  </th>
-                  <th className="py-3.5 pr-4 font-semibold">Check in</th>
-                  <th className="py-3.5 pr-4 font-semibold">Check out</th>
-                  <th className="hidden py-3.5 pr-4 font-semibold lg:table-cell">
-                    Worked
-                  </th>
-                  <th className="hidden py-3.5 pr-4 font-semibold lg:table-cell">
-                    Late
-                  </th>
-                  <th className="hidden py-3.5 pr-4 font-semibold 2xl:table-cell">
-                    Required
-                  </th>
-                  <th className="hidden py-3.5 pr-4 font-semibold 2xl:table-cell">
-                    Actual
-                  </th>
-                  <th className="py-3.5 pr-4 font-semibold">Discount Hours</th>
-                  <th className="py-3.5 pr-4 font-semibold">Status</th>
-                  <th className="py-3.5 pr-4 font-semibold">Action</th>
-                  <th className="py-3.5 pr-5">
-                    <span className="sr-only">Open details</span>
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {filtered.map((row) => (
-                  <DailyRow
-                    key={row.employeeId}
-                    row={row}
-                    isWaiverPending={isPending(row.employeeId, date)}
-                    canManageWaivers={canManageWaivers}
-                    canManageLeaves={canManageLeaves}
-                    onGrantWaiver={() => handleToggleWaiver(row, true)}
-                    onRevokeWaiver={() => handleToggleWaiver(row, false)}
-                    onAddLeave={() =>
-                      setLeaveFormTarget({ employeeId: row.employeeId, date })
-                    }
-                    onShowLeave={() => setLeaveTarget(row)}
-                  />
-                ))}
-              </tbody>
-            </table>
+      <div className="glass-card rounded-3xl">
+        <div className="sticky top-4 z-20 flex flex-wrap items-center gap-3 rounded-t-3xl border-b border-slate-200/70 bg-white/70 px-5 py-4 backdrop-blur-xl">
+          <div className="relative w-full max-w-sm">
+            <Search
+              size={18}
+              aria-hidden
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search by employee name…"
+              aria-label="Search employees"
+              disabled={isLoading}
+              className={`${CONTROL_CLASS} w-full pl-11 pr-4 disabled:cursor-not-allowed disabled:opacity-60`}
+            />
           </div>
-        )}
+
+          <label className="sr-only" htmlFor="daily-status-filter">
+            Filter by attendance status
+          </label>
+          <select
+            id="daily-status-filter"
+            value={status}
+            onChange={(event) => setStatus(event.target.value as StatusFilter)}
+            disabled={isLoading}
+            className={`${CONTROL_CLASS} px-3.5 pr-8 disabled:cursor-not-allowed disabled:opacity-60`}
+          >
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option === "ALL" ? "All statuses" : getStatusLabel(option)}
+              </option>
+            ))}
+          </select>
+
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                setStatus("ALL");
+              }}
+              className="inline-flex h-11 items-center gap-1.5 rounded-2xl px-3 text-sm font-medium text-slate-500 transition-colors hover:text-violet-600"
+            >
+              <X size={15} />
+              Clear filters
+            </button>
+          )}
+
+          <p className="ml-auto text-sm text-slate-500">
+            {filtered.length === rows.length
+              ? `${rows.length} employees`
+              : `${filtered.length} of ${rows.length} employees`}
+          </p>
+
+          {controls}
+        </div>
+
+        <div className="overflow-hidden rounded-b-3xl">
+          {isLoading ? (
+            <ReportLoadingState message="Loading daily attendance…" />
+          ) : filtered.length === 0 ? (
+            <ReportEmptyState
+              title={hasFilters ? "No matching employees" : "No attendance for this date"}
+              message={
+                hasFilters
+                  ? "Try a different name or status filter."
+                  : "There are no scheduled employees to display for this date."
+              }
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200/70 text-xs uppercase tracking-wide text-slate-500">
+                    <th className="py-3.5 pl-5 pr-4 font-semibold">Employee</th>
+                    <th className="hidden py-3.5 pr-4 font-semibold md:table-cell">
+                      ID
+                    </th>
+                    <th className="hidden py-3.5 pr-4 font-semibold xl:table-cell">
+                      Shift
+                    </th>
+                    <th className="py-3.5 pr-4 font-semibold">Check in</th>
+                    <th className="py-3.5 pr-4 font-semibold">Check out</th>
+                    <th className="hidden py-3.5 pr-4 font-semibold lg:table-cell">
+                      Worked
+                    </th>
+                    <th className="hidden py-3.5 pr-4 font-semibold lg:table-cell">
+                      Late
+                    </th>
+                    <th className="hidden py-3.5 pr-4 font-semibold 2xl:table-cell">
+                      Required
+                    </th>
+                    <th className="hidden py-3.5 pr-4 font-semibold 2xl:table-cell">
+                      Actual
+                    </th>
+                    <th className="py-3.5 pr-4 font-semibold">Discount Hours</th>
+                    <th className="py-3.5 pr-4 font-semibold">Status</th>
+                    <th className="py-3.5 pr-4 font-semibold">Action</th>
+                    <th className="py-3.5 pr-5">
+                      <span className="sr-only">Open details</span>
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filtered.map((row) => (
+                    <DailyRow
+                      key={row.employeeId}
+                      row={row}
+                      isWaiverPending={isPending(row.employeeId, date)}
+                      canManageWaivers={canManageWaivers}
+                      canManageLeaves={canManageLeaves}
+                      onGrantWaiver={() => handleToggleWaiver(row, true)}
+                      onRevokeWaiver={() => handleToggleWaiver(row, false)}
+                      onAddLeave={() =>
+                        setLeaveFormTarget({ employeeId: row.employeeId, date })
+                      }
+                      onShowLeave={() => setLeaveTarget(row)}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       <WaiverReasonDialog

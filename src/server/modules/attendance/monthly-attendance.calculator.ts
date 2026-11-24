@@ -1,7 +1,6 @@
 import {
   calculateDailyAttendance,
   isWithinEmploymentPeriod,
-  type AttendanceStatus,
   type DailyAttendanceRow,
 } from "./attendance.calculator";
 import type {

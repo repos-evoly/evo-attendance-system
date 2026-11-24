@@ -215,6 +215,7 @@ export async function reactivatePublicHoliday(
   holidayId: bigint,
   _input: ReactivatePublicHolidayInput,
 ): Promise<PublicHolidayRecord | null> {
+  void _input;
   const result = await prisma.publicHoliday.updateMany({
     where: { holidayId, cancelledAt: { not: null } },
     data: {

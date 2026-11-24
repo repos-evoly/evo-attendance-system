@@ -1,5 +1,5 @@
 diff --git a/node_modules/@graphland/zkteco/dist/transport/tcp.js b/node_modules/@graphland/zkteco/dist/transport/tcp.js
-index 31f5609..c40b5b4 100644
+index 31f5609..4231844 100644
 --- a/node_modules/@graphland/zkteco/dist/transport/tcp.js
 +++ b/node_modules/@graphland/zkteco/dist/transport/tcp.js
 @@ -156,7 +156,7 @@ export class TcpTransport {
@@ -11,62 +11,8 @@ index 31f5609..c40b5b4 100644
                  let timer = setTimeout(() => {
                      finish(replyData, new Error("TIMEOUT WHEN RECEIVING PACKET"));
                  }, timeout);
-@@ -166,32 +166,41 @@ export class TcpTransport {
-                     resolve({ data, err });
-                 };
-                 const onData = (packet) => {
--                    if (checkNotEventTCP(packet))
--                        return;
-                     if (timer)
-                         clearTimeout(timer);
-                     timer = setTimeout(() => finish(replyData, new Error(`TIME OUT !! ${totalPackets} PACKETS REMAIN !`)), timeout);
-                     totalBuffer = Buffer.concat([totalBuffer, packet]);
--                    const packetLength = totalBuffer.readUIntLE(4, 2);
--                    if (totalBuffer.length >= 8 + packetLength) {
-+                    while (totalBuffer.length >= 8) {
-+                        const packetLength = totalBuffer.readUIntLE(4, 2);
-+                        if (packetLength < 8) {
-+                            return finish(replyData, new Error("MALFORMED_PACKET_RECEIVED"));
-+                        }
-+                        const frameEnd = 8 + packetLength;
-+                        if (totalBuffer.length < frameEnd)
-+                            break;
-+                        const frame = totalBuffer.subarray(0, frameEnd);
-+                        totalBuffer = totalBuffer.subarray(frameEnd);
-+                        if (checkNotEventTCP(frame))
-+                            continue;
-                         realTotalBuffer = Buffer.concat([
-                             realTotalBuffer,
--                            totalBuffer.subarray(16, 8 + packetLength),
-+                            frame.subarray(16, frameEnd),
-                         ]);
--                        totalBuffer = totalBuffer.subarray(8 + packetLength);
--                        if ((totalPackets > 1 &&
--                            realTotalBuffer.length === MAX_CHUNK + 8) ||
--                            (totalPackets === 1 && realTotalBuffer.length === remain + 8)) {
-+                        const expected = totalPackets > 1 ? MAX_CHUNK + 8 : remain > 0 ? remain + 8 : MAX_CHUNK + 8;
-+                        if (realTotalBuffer.length >= expected) {
-                             replyData = Buffer.concat([
-                                 replyData,
-                                 realTotalBuffer.subarray(8),
-                             ]);
--                            totalBuffer = Buffer.alloc(0);
-                             realTotalBuffer = Buffer.alloc(0);
-                             totalPackets -= 1;
-                             onProgress?.(replyData.length, size);
--                            if (totalPackets <= 0)
--                                finish(replyData);
-+                            if (totalPackets <= 0) {
-+                                if (replyData.length !== size) {
-+                                    return finish(replyData, new Error(`INCOMPLETE_DATA_RECEIVED ${replyData.length}/${size}`));
-+                                }
-+                                return finish(replyData);
-+                            }
-                         }
-                     }
-                 };
 diff --git a/node_modules/@graphland/zkteco/src/transport/tcp.ts b/node_modules/@graphland/zkteco/src/transport/tcp.ts
-index 5d3afc6..f1d6b23 100644
+index 5d3afc6..8e241af 100644
 --- a/node_modules/@graphland/zkteco/src/transport/tcp.ts
 +++ b/node_modules/@graphland/zkteco/src/transport/tcp.ts
 @@ -236,7 +236,7 @@ export class TcpTransport implements Transport {
@@ -78,72 +24,3 @@ index 5d3afc6..f1d6b23 100644
  
            let timer = setTimeout(() => {
              finish(replyData, new Error("TIMEOUT WHEN RECEIVING PACKET"));
-@@ -248,7 +248,6 @@ export class TcpTransport implements Transport {
-           };
- 
-           const onData = (packet: Buffer) => {
--            if (checkNotEventTCP(packet)) return;
-             if (timer) clearTimeout(timer);
-             timer = setTimeout(
-               () =>
-@@ -260,28 +259,49 @@ export class TcpTransport implements Transport {
-             );
- 
-             totalBuffer = Buffer.concat([totalBuffer, packet]);
--            const packetLength = totalBuffer.readUIntLE(4, 2);
--            if (totalBuffer.length >= 8 + packetLength) {
-+            while (totalBuffer.length >= 8) {
-+              const packetLength = totalBuffer.readUIntLE(4, 2);
-+              if (packetLength < 8) {
-+                return finish(replyData, new Error("MALFORMED_PACKET_RECEIVED"));
-+              }
-+              const frameEnd = 8 + packetLength;
-+              if (totalBuffer.length < frameEnd) break;
-+
-+              const frame = totalBuffer.subarray(0, frameEnd);
-+              totalBuffer = totalBuffer.subarray(frameEnd);
-+              if (checkNotEventTCP(frame)) continue;
-+
-               realTotalBuffer = Buffer.concat([
-                 realTotalBuffer,
--                totalBuffer.subarray(16, 8 + packetLength),
-+                frame.subarray(16, frameEnd),
-               ]);
--              totalBuffer = totalBuffer.subarray(8 + packetLength);
- 
--              if (
--                (totalPackets > 1 &&
--                  realTotalBuffer.length === MAX_CHUNK + 8) ||
--                (totalPackets === 1 && realTotalBuffer.length === remain + 8)
--              ) {
-+              const expected =
-+                totalPackets > 1
-+                  ? MAX_CHUNK + 8
-+                  : remain > 0
-+                    ? remain + 8
-+                    : MAX_CHUNK + 8;
-+
-+              if (realTotalBuffer.length >= expected) {
-                 replyData = Buffer.concat([
-                   replyData,
-                   realTotalBuffer.subarray(8),
-                 ]);
--                totalBuffer = Buffer.alloc(0);
-                 realTotalBuffer = Buffer.alloc(0);
-                 totalPackets -= 1;
-                 onProgress?.(replyData.length, size);
--                if (totalPackets <= 0) finish(replyData);
-+                if (totalPackets <= 0) {
-+                  if (replyData.length !== size) {
-+                    return finish(
-+                      replyData,
-+                      new Error(
-+                        `INCOMPLETE_DATA_RECEIVED ${replyData.length}/${size}`,
-+                      ),
-+                    );
-+                  }
-+                  return finish(replyData);
-+                }
-               }
-             }
-           };

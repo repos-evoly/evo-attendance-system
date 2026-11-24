@@ -12,8 +12,8 @@
 
 export const SESSION_COOKIE_NAME = "attendance_session";
 
-/** How long a session stays valid (8 hours). */
-export const SESSION_MAX_AGE_SECONDS = 8 * 60 * 60;
+/** How long a session stays valid (1 hour). */
+export const SESSION_MAX_AGE_SECONDS = 60 * 60;
 
 export interface Session {
   /** `users.user_id` as a string (the column is a bigint). */
@@ -21,6 +21,8 @@ export interface Session {
   username: string;
   /** Expiry as Unix seconds. */
   expiresAt: number;
+  /** Issued-at as Unix seconds. Absent on tokens minted before it existed. */
+  iat?: number;
 }
 
 /**
@@ -104,10 +106,12 @@ export async function createSessionToken(input: {
   userId: string;
   username: string;
 }): Promise<string> {
+  const issuedAt = Math.floor(Date.now() / 1000);
   const session: Session = {
     userId: input.userId,
     username: input.username,
-    expiresAt: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_SECONDS,
+    expiresAt: issuedAt + SESSION_MAX_AGE_SECONDS,
+    iat: issuedAt,
   };
   const payload = base64UrlEncode(
     new TextEncoder().encode(JSON.stringify(session)),
@@ -144,7 +148,8 @@ export async function verifySessionToken(token: string): Promise<Session | null>
 
     if (typeof parsed !== "object" || parsed === null) return null;
 
-    const { userId, username, expiresAt } = parsed as Record<string, unknown>;
+    const { userId, username, expiresAt, iat } =
+      parsed as Record<string, unknown>;
 
     if (
       typeof userId !== "string" ||
@@ -156,7 +161,21 @@ export async function verifySessionToken(token: string): Promise<Session | null>
 
     if (expiresAt * 1000 <= Date.now()) return null;
 
-    return { userId, username, expiresAt };
+    // Tokens minted before `iat` existed carry the old 8-hour expiry, so the
+    // issue time is inferred from it. Either way a session may not outlive
+    // SESSION_MAX_AGE_SECONDS from issuance, which retires old 8-hour tokens.
+    const LEGACY_SESSION_SECONDS = 8 * 60 * 60;
+    const issuedAt =
+      typeof iat === "number" ? iat : expiresAt - LEGACY_SESSION_SECONDS;
+
+    if (
+      issuedAt + SESSION_MAX_AGE_SECONDS <=
+      Math.floor(Date.now() / 1000)
+    ) {
+      return null;
+    }
+
+    return { userId, username, expiresAt, iat: typeof iat === "number" ? iat : undefined };
   } catch {
     return null;
   }

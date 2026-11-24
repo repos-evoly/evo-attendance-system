@@ -3,7 +3,6 @@ import type {
   CreateShiftAssignmentInput,
   ShiftAssignmentPeriod,
   ShiftAssignmentRecord,
-  UpdateShiftAssignmentInput,
 } from "./shift-assignment.types";
 import { toDatabaseDate, toDateString } from "./shift-assignment.utils";
 

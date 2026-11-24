@@ -7,6 +7,7 @@ import {
   listLeavePeriods,
 } from "./leave.repository";
 import { cancelLeave, createLeave } from "./leave.service";
+import { refreshAndPersistDailyAttendance } from "../attendance/attendance.service";
 import type { EmployeeLeaveRecord } from "./leave.types";
 
 /**
@@ -26,6 +27,14 @@ vi.mock("./leave.repository", () => ({
   getLeaveDetailsForDate: vi.fn(),
   isEmployeeOnLeave: vi.fn(),
 }));
+
+// The attendance refresh is mocked so no database is touched; the leave
+// service's own rules stay under test.
+vi.mock("../attendance/attendance.service", () => ({
+  refreshAndPersistDailyAttendance: vi.fn(),
+}));
+
+const mockRefreshAndPersist = vi.mocked(refreshAndPersistDailyAttendance);
 
 const mockEmployeeExists = vi.mocked(employeeExists);
 const mockListLeavePeriods = vi.mocked(listLeavePeriods);
@@ -70,6 +79,7 @@ beforeEach(() => {
   mockCreateEmployeeLeave.mockResolvedValue(storedRecord);
   mockGetEmployeeLeave.mockResolvedValue(storedRecord);
   mockCancelEmployeeLeave.mockResolvedValue(cancelledRecord);
+  mockRefreshAndPersist.mockResolvedValue(undefined);
 });
 
 describe("createLeave validation", () => {
@@ -279,7 +289,12 @@ describe("cancelLeave", () => {
       reason: "Trip postponed",
       cancelledById: CANCELLED_BY,
     });
-    expect(result).toEqual({ ok: true, leave: cancelledRecord });
+    // storedRecord spans Mon 2026-11-02 to Wed 2026-11-04: three refreshes.
+    expect(result).toEqual({
+      ok: true,
+      leave: cancelledRecord,
+      attendanceRefresh: { attemptedDates: 3, failedDates: [] },
+    });
     // Original details survive; only the cancellation audit is added.
     expect(cancelledRecord.dateFrom).toBe(storedRecord.dateFrom);
     expect(cancelledRecord.leaveType).toBe(storedRecord.leaveType);
@@ -295,5 +310,99 @@ describe("cancelLeave", () => {
     });
 
     expect(result.ok === false && result.error.code).toBe("ALREADY_CANCELLED");
+  });
+});
+
+describe("attendance refresh after leave changes", () => {
+  const INPUT = {
+    employeeId: 7,
+    dateFrom: "2026-11-02",
+    dateTo: "2026-11-04",
+    leaveType: "VACATION" as const,
+    reason: null,
+    createdById: CREATED_BY,
+  };
+
+  function leaveOn(dateFrom: string, dateTo: string): EmployeeLeaveRecord {
+    return { ...storedRecord, dateFrom, dateTo };
+  }
+
+  it("refreshes every non-weekend date of a created leave", async () => {
+    const result = await createLeave(INPUT);
+
+    expect(result.ok).toBe(true);
+    // 2026-11-02 (Mon), 11-03 (Tue), 11-04 (Wed) — all in the past.
+    expect(mockRefreshAndPersist.mock.calls.map((call) => call[0])).toEqual([
+      "2026-11-02",
+      "2026-11-03",
+      "2026-11-04",
+    ]);
+    expect(
+      result.ok === true && result.attendanceRefresh,
+    ).toEqual({ attemptedDates: 3, failedDates: [] });
+  });
+
+  it("refreshes the affected dates after a cancellation too", async () => {
+    await cancelLeave(BigInt(1), {
+      reason: "Trip postponed",
+      cancelledById: CANCELLED_BY,
+    });
+
+    expect(mockRefreshAndPersist).toHaveBeenCalledTimes(3);
+  });
+
+  it("skips Friday and Saturday entirely", async () => {
+    // Libya weekend is Fri+Sat: 2026-11-06 (Fri) and 11-07 (Sat) are skipped,
+    // while Sunday 11-08 is a working day and 11-09 a Monday.
+    mockCreateEmployeeLeave.mockResolvedValue(
+      leaveOn("2026-11-06", "2026-11-09"),
+    );
+
+    const result = await createLeave({
+      ...INPUT,
+      dateFrom: "2026-11-06",
+      dateTo: "2026-11-09",
+    });
+
+    expect(mockRefreshAndPersist.mock.calls.map((call) => call[0])).toEqual([
+      "2026-11-08",
+      "2026-11-09",
+    ]);
+    expect(
+      result.ok === true && result.attendanceRefresh.attemptedDates,
+    ).toBe(2);
+  });
+
+  it("does not process future dates", async () => {
+    // Far-future range: nothing may be refreshed regardless of run date.
+    mockCreateEmployeeLeave.mockResolvedValue(
+      leaveOn("2099-01-05", "2099-01-09"),
+    );
+
+    const result = await createLeave({
+      ...INPUT,
+      dateFrom: "2099-01-05",
+      dateTo: "2099-01-09",
+    });
+
+    expect(mockRefreshAndPersist).not.toHaveBeenCalled();
+    expect(
+      result.ok === true && result.attendanceRefresh,
+    ).toEqual({ attemptedDates: 0, failedDates: [] });
+  });
+
+  it("collects per-date failures without aborting the remaining refreshes", async () => {
+    mockRefreshAndPersist
+      .mockRejectedValueOnce(new Error("db down"))
+      .mockResolvedValue(undefined);
+
+    const result = await createLeave(INPUT);
+
+    // The leave still succeeded; only the refresh outcome reports the failure.
+    expect(result.ok).toBe(true);
+    expect(mockRefreshAndPersist).toHaveBeenCalledTimes(3);
+    expect(
+      result.ok === true && result.attendanceRefresh,
+    ).toEqual({ attemptedDates: 3, failedDates: ["2026-11-02"] });
   });
 });

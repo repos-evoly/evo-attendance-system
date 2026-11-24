@@ -8,6 +8,9 @@ import {
   updatePublicHoliday,
 } from "./public-holiday.repository";
 import { findOverlappingHoliday } from "./public-holiday.utils";
+import { isWeekend } from "../attendance/attendance.calculator";
+import { refreshAndPersistDailyAttendance } from "../attendance/attendance.service";
+import { getLibyaToday } from "../attendance/monthly-attendance.calculator";
 import type {
   CancelPublicHolidayInput,
   CreatePublicHolidayInput,
@@ -30,8 +33,73 @@ export interface PublicHolidayError {
   message: string;
 }
 
+/**
+ * Outcome of the attendance refresh that follows a holiday mutation. The
+ * holiday itself is already committed when this runs, so failures are
+ * collected per date instead of aborting the remaining refreshes; the route
+ * turns a non-empty `failedDates` into an explicit error response.
+ */
+export interface AttendanceRefreshOutcome {
+  /** Non-weekend dates up to today that were recalculated and persisted. */
+  attemptedDates: number;
+  /** Dates whose refresh threw; each is also logged server-side. */
+  failedDates: string[];
+}
+
+/** Every `YYYY-MM-DD` from `start` to `end` inclusive (both validated dates). */
+function* datesBetween(start: string, end: string): Generator<string> {
+  const cursor = new Date(`${start}T00:00:00.000Z`);
+  const last = new Date(`${end}T00:00:00.000Z`);
+
+  while (cursor <= last) {
+    yield cursor.toISOString().slice(0, 10);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+}
+
+/**
+ * Recalculates and persists attendance for every affected date of a holiday:
+ * each non-weekend day from `dateFrom` up to `min(dateTo, today)`. A public
+ * holiday applies to every employee, and `refreshAndPersistDailyAttendance`
+ * already recalculates and persists all of them for a date. Future dates are
+ * skipped; weekend days are skipped because `persistDailyAttendance` would
+ * discard their WEEKEND rows anyway.
+ */
+async function refreshAttendanceForPeriod(
+  holidayId: string,
+  dateFrom: string,
+  dateTo: string,
+): Promise<AttendanceRefreshOutcome> {
+  const today = getLibyaToday();
+  const end = dateTo < today ? dateTo : today;
+  const failedDates: string[] = [];
+  let attemptedDates = 0;
+
+  for (const date of datesBetween(dateFrom, end)) {
+    if (isWeekend(date)) continue;
+
+    attemptedDates += 1;
+
+    try {
+      await refreshAndPersistDailyAttendance(date);
+    } catch (error) {
+      console.error(
+        `Attendance refresh failed for ${date} after public holiday ${holidayId}:`,
+        error,
+      );
+      failedDates.push(date);
+    }
+  }
+
+  return { attemptedDates, failedDates };
+}
+
 export type CreatePublicHolidayResult =
-  | { ok: true; holiday: PublicHolidayRecord }
+  | {
+      ok: true;
+      holiday: PublicHolidayRecord;
+      attendanceRefresh: AttendanceRefreshOutcome;
+    }
   | { ok: false; error: PublicHolidayError };
 
 /**
@@ -82,13 +150,17 @@ export async function createHoliday(
     };
   }
 
-  return {
-    ok: true,
-    holiday: await createPublicHoliday({
-      ...input,
-      name: trimmedName,
-    }),
-  };
+  const holiday = await createPublicHoliday({
+    ...input,
+    name: trimmedName,
+  });
+  const attendanceRefresh = await refreshAttendanceForPeriod(
+    holiday.holidayId,
+    holiday.dateFrom,
+    holiday.dateTo,
+  );
+
+  return { ok: true, holiday, attendanceRefresh };
 }
 
 /** Lists all public holiday records. */
@@ -97,7 +169,11 @@ export async function listHolidays(): Promise<PublicHolidayRecord[]> {
 }
 
 export type UpdatePublicHolidayResult =
-  | { ok: true; holiday: PublicHolidayRecord }
+  | {
+      ok: true;
+      holiday: PublicHolidayRecord;
+      attendanceRefresh: AttendanceRefreshOutcome;
+    }
   | { ok: false; error: PublicHolidayError };
 
 /**
@@ -171,15 +247,35 @@ export async function updateHoliday(
     };
   }
 
-  return { ok: true, holiday: updated };
+  // The old range loses the holiday and the new range gains it, so both are
+  // refreshed; the span between them is refreshed too (idempotent upserts).
+  const refreshFrom =
+    existing.dateFrom < input.dateFrom ? existing.dateFrom : input.dateFrom;
+  const refreshTo =
+    existing.dateTo > input.dateTo ? existing.dateTo : input.dateTo;
+  const attendanceRefresh = await refreshAttendanceForPeriod(
+    updated.holidayId,
+    refreshFrom,
+    refreshTo,
+  );
+
+  return { ok: true, holiday: updated, attendanceRefresh };
 }
 
 export type CancelPublicHolidayResult =
-  | { ok: true; holiday: PublicHolidayRecord }
+  | {
+      ok: true;
+      holiday: PublicHolidayRecord;
+      attendanceRefresh: AttendanceRefreshOutcome;
+    }
   | { ok: false; error: PublicHolidayError };
 
 export type ReactivatePublicHolidayResult =
-  | { ok: true; holiday: PublicHolidayRecord }
+  | {
+      ok: true;
+      holiday: PublicHolidayRecord;
+      attendanceRefresh: AttendanceRefreshOutcome;
+    }
   | { ok: false; error: PublicHolidayError };
 
 /**
@@ -228,7 +324,13 @@ export async function cancelHoliday(
     };
   }
 
-  return { ok: true, holiday: cancelled };
+  const attendanceRefresh = await refreshAttendanceForPeriod(
+    cancelled.holidayId,
+    cancelled.dateFrom,
+    cancelled.dateTo,
+  );
+
+  return { ok: true, holiday: cancelled, attendanceRefresh };
 }
 
 /**
@@ -274,5 +376,11 @@ export async function reactivateHoliday(
     };
   }
 
-  return { ok: true, holiday: reactivated };
+  const attendanceRefresh = await refreshAttendanceForPeriod(
+    reactivated.holidayId,
+    reactivated.dateFrom,
+    reactivated.dateTo,
+  );
+
+  return { ok: true, holiday: reactivated, attendanceRefresh };
 }

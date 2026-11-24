@@ -62,11 +62,11 @@ function runSyncService(): Promise<SyncServiceResult> {
 }
 
 /**
- * Starts a run of the Sync Service. Restricted to ADMIN and HR.
+ * Starts a run of the Sync Service. Restricted to ADMIN, HR, MANAGER, and VIEWER.
  */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireRole(request, ["ADMIN", "HR"]);
+    const auth = await requireRole(request, ["ADMIN", "HR", "MANAGER", "VIEWER"]);
     if (!auth.ok) return auth.response;
 
     const { code, output } = await runSyncService();

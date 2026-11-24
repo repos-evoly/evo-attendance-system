@@ -8,6 +8,7 @@ import {
   CircleX,
   Clock,
   TriangleExclamationPoint,
+  Umbrella,
   Users,
 } from "lucide-react";
 import { DashboardHeader } from "@/components/attendance/layout/DashboardHeader";
@@ -46,13 +47,6 @@ export default function DailyReportPage() {
         breadcrumbs={[{ label: "Daily Report" }]}
       />
 
-      <DailyReportFilters
-        date={date}
-        onDateChange={setDate}
-        isRefreshing={isLoading}
-        onRefresh={refetch}
-      />
-
       {error ? (
         <div className="glass-card rounded-3xl">
           <ReportErrorState message={error} onRetry={refetch} />
@@ -61,7 +55,7 @@ export default function DailyReportPage() {
         <>
           <section
             aria-label="Daily attendance summary"
-            className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
           >
             <StatCard
               label="Total Employees"
@@ -112,6 +106,13 @@ export default function DailyReportPage() {
               tone="rose"
               isLoading={isLoading}
             />
+            <StatCard
+              label="On Leave"
+              value={summary?.onLeave ?? 0}
+              icon={Umbrella}
+              tone="sky"
+              isLoading={isLoading}
+            />
           </section>
 
           <DailyAttendanceTable
@@ -121,6 +122,14 @@ export default function DailyReportPage() {
             canManageWaivers={canManageWaivers}
             canManageLeaves={canManageLeaves}
             onRefetch={refetch}
+            controls={
+              <DailyReportFilters
+                date={date}
+                onDateChange={setDate}
+                isRefreshing={isLoading}
+                onRefresh={refetch}
+              />
+            }
           />
         </>
       )}

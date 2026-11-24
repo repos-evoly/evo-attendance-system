@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDailyAttendance } from "@/server/modules/attendance/attendance.service";
+import { persistDailyAttendance } from "@/server/modules/attendance/attendance.repository";
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,6 +29,20 @@ export async function GET(request: NextRequest) {
     }
 
     const result = await getDailyAttendance(date);
+
+    try {
+      await persistDailyAttendance(date, result.employees);
+    } catch (error) {
+      console.error("Daily attendance persistence failed:", error);
+
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Failed to persist daily attendance.",
+        },
+        { status: 500 },
+      );
+    }
 
     return NextResponse.json({
       success: true,

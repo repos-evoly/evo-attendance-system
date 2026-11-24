@@ -50,7 +50,3 @@ export interface CancelPublicHolidayRequest {
   reason: string;
 }
 
-/** Body of `POST /api/v1/public-holidays/[holidayId]` - reactivation. */
-export interface ReactivatePublicHolidayRequest {
-  // No body needed - the acting user comes from the session
-}

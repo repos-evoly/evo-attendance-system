@@ -10,8 +10,10 @@
  * written. The hash format matches `src/lib/auth/password.ts`.
  *
  * Usage:
- *   npm run db:create-admin                        # admin / admin
  *   ADMIN_USERNAME=... ADMIN_PASSWORD=... npm run db:create-admin
+ *
+ * Both ADMIN_USERNAME and ADMIN_PASSWORD are required; there are no
+ * default credentials.
  */
 
 const { Client } = require("pg");
@@ -24,8 +26,8 @@ const SCRYPT_P = 1;
 const KEY_LENGTH = 64;
 const SALT_LENGTH = 16;
 
-const USERNAME = process.env.ADMIN_USERNAME || "admin";
-const PASSWORD = process.env.ADMIN_PASSWORD || "admin";
+const USERNAME = process.env.ADMIN_USERNAME?.trim() ?? "";
+const PASSWORD = process.env.ADMIN_PASSWORD ?? "";
 const ROLE = "ADMIN";
 
 function hashPassword(password) {
@@ -92,6 +94,11 @@ async function createAdmin() {
 
 if (!process.env.DATABASE_URL) {
   console.error("DATABASE_URL is missing.");
+  process.exitCode = 1;
+} else if (!USERNAME || !PASSWORD) {
+  console.error(
+    "ADMIN_USERNAME and ADMIN_PASSWORD must both be set to non-empty values."
+  );
   process.exitCode = 1;
 } else {
   createAdmin();

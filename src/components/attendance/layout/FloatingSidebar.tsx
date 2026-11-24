@@ -40,7 +40,7 @@ const NAV_ITEMS: readonly SidebarNavItem[] = [
   { label: "Monthly Report", href: "/monthly-report", icon: CalendarRange },
   { label: "Leaves", href: "/leaves", icon: CalendarClock },
   { label: "Waivers", href: "/waivers", icon: ShieldCheck },
-  { label: "Device Sync", href: "/device-sync", icon: RefreshCw, roles: ["ADMIN", "HR"] },
+  { label: "Device Sync", href: "/device-sync", icon: RefreshCw },
   { label: "Users", href: "/users", icon: UserCog, roles: ["ADMIN"] },
 ];
 

@@ -9,11 +9,11 @@ interface FilterControlProps {
 }
 
 const REFRESH_BUTTON_CLASS =
-  "inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-600 text-white transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60";
 
 /** Shared so the employee details month picker matches the report filters. */
 export const DATE_INPUT_CLASS =
-  "rounded-2xl border border-slate-200 bg-white/80 px-3.5 py-2.5 text-sm text-slate-700 outline-none transition focus:ring-2 focus:ring-violet-300";
+  "h-11 rounded-2xl border border-slate-200 bg-white/80 px-3.5 text-sm text-slate-700 outline-none transition focus:ring-2 focus:ring-violet-300";
 
 function RefreshButton({ isRefreshing, onRefresh }: FilterControlProps) {
   return (
@@ -21,17 +21,19 @@ function RefreshButton({ isRefreshing, onRefresh }: FilterControlProps) {
       type="button"
       onClick={onRefresh}
       disabled={isRefreshing}
+      aria-label="Refresh report"
+      title="Refresh"
       className={REFRESH_BUTTON_CLASS}
     >
       <RefreshCw size={16} className={isRefreshing ? "animate-spin" : undefined} />
-      Refresh
     </button>
   );
 }
 
 /**
- * Date picker + refresh for the Daily report. The chosen date is sent to the
- * existing daily API by the page's hook.
+ * Date picker + refresh for the Daily report, rendered at the start of the
+ * table toolbar. The chosen date is sent to the existing daily API
+ * by the page's hook.
  */
 export function DailyReportFilters({
   date,
@@ -43,30 +45,29 @@ export function DailyReportFilters({
   onDateChange: (value: string) => void;
 } & FilterControlProps) {
   return (
-    <div className="glass-card flex flex-wrap items-end gap-3 rounded-3xl p-4 md:p-5">
-      <label
-        htmlFor="daily-report-date"
-        className="flex flex-col gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-500"
-      >
+    <>
+      <label htmlFor="daily-report-date" className="sr-only">
         Date
-        <input
-          id="daily-report-date"
-          type="date"
-          value={date}
-          onChange={(event) => {
-            if (event.target.value) onDateChange(event.target.value);
-          }}
-          className={DATE_INPUT_CLASS}
-        />
       </label>
+      <input
+        id="daily-report-date"
+        type="date"
+        value={date}
+        onChange={(event) => {
+          if (event.target.value) onDateChange(event.target.value);
+        }}
+        aria-label="Report date"
+        className={DATE_INPUT_CLASS}
+      />
 
       <RefreshButton isRefreshing={isRefreshing} onRefresh={onRefresh} />
-    </div>
+    </>
   );
 }
 
 /**
- * Month picker + refresh for the Monthly report.
+ * Month picker + refresh for the Monthly report, rendered at the start of
+ * the table toolbar.
  */
 export function MonthlyReportFilters({
   month,
@@ -78,24 +79,22 @@ export function MonthlyReportFilters({
   onMonthChange: (value: string) => void;
 } & FilterControlProps) {
   return (
-    <div className="glass-card flex flex-wrap items-end gap-3 rounded-3xl p-4 md:p-5">
-      <label
-        htmlFor="monthly-report-month"
-        className="flex flex-col gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-500"
-      >
+    <>
+      <label htmlFor="monthly-report-month" className="sr-only">
         Month
-        <input
-          id="monthly-report-month"
-          type="month"
-          value={month}
-          onChange={(event) => {
-            if (event.target.value) onMonthChange(event.target.value);
-          }}
-          className={DATE_INPUT_CLASS}
-        />
       </label>
+      <input
+        id="monthly-report-month"
+        type="month"
+        value={month}
+        onChange={(event) => {
+          if (event.target.value) onMonthChange(event.target.value);
+        }}
+        aria-label="Report month"
+        className={DATE_INPUT_CLASS}
+      />
 
       <RefreshButton isRefreshing={isRefreshing} onRefresh={onRefresh} />
-    </div>
+    </>
   );
 }

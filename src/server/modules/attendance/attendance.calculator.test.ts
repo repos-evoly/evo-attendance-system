@@ -1,9 +1,6 @@
 
 import { describe, expect, it } from "vitest";
-import {
-  calculateDailyAttendance,
-  type AttendanceStatus,
-} from "./attendance.calculator";
+import { calculateDailyAttendance } from "./attendance.calculator";
 
 import type {
   AttendanceEmployee,
@@ -51,6 +48,9 @@ describe("calculateDailyAttendance", () => {
 
     expect(result[0]).toMatchObject({
       employeeId: 1,
+      shiftId: 1,
+      scheduledIn: "09:00:00",
+      scheduledOut: "15:00:00",
       checkIn: "09:00",
       checkOut: "15:00",
       punchCount: 2,
@@ -339,7 +339,12 @@ describe("calculateDailyAttendance", () => {
       now: `${DATE}T10:00:00.000`,
     });
 
-    expect(result[0]?.status).toBe("NO_SHIFT");
+    expect(result[0]).toMatchObject({
+      status: "NO_SHIFT",
+      shiftId: null,
+      scheduledIn: null,
+      scheduledOut: null,
+    });
   });
 
   it("returns all employees even when they have no punches", () => {

@@ -1,6 +1,7 @@
 
 import type { LeaveType } from "@prisma/client";
 import { prisma } from "@/server/prisma";
+import type { DailyAttendanceRow } from "./attendance.calculator";
 
 export interface AttendanceEmployee {
   employeeId: number;
@@ -255,5 +256,117 @@ export async function setAttendanceWaiver(
     }
 
     return true;
+  });
+}
+
+/**
+ * Persists calculated daily attendance results for a single date.
+ *
+ * Uses upsert based on the unique constraint (employeeId, attendanceDate).
+ * Existing waiver values are preserved: the waiver column is never updated
+ * during upsert, only set when creating new records (using the row's waiver value).
+ *
+ * Skips rows with missing shift information or WEEKEND status.
+ *
+ * @param date - The attendance date in YYYY-MM-DD format
+ * @param rows - Calculated attendance rows from the calculator
+ */
+export async function persistDailyAttendance(
+  date: string,
+  rows: DailyAttendanceRow[],
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    for (const row of rows) {
+      // Skip rows without valid shift information
+      if (!row.shiftId || !row.scheduledIn || !row.scheduledOut) {
+        continue;
+      }
+
+      // Skip WEEKEND rows (non-working days)
+      if (row.status === "WEEKEND") {
+        continue;
+      }
+
+      // Convert checkIn/checkOut from HH:mm to TIMESTAMP
+      // The calculator returns "09:30" format, we need to combine with date
+      // Use UTC construction to avoid server timezone offset being applied
+      const checkInTimestamp = row.checkIn
+        ? (() => {
+            const [year, month, day] = date.split("-").map(Number) as [
+              number,
+              number,
+              number,
+            ];
+            const [hours, minutes] = row.checkIn!.split(":").map(Number) as [
+              number,
+              number,
+            ];
+            return new Date(Date.UTC(year, month - 1, day, hours, minutes, 0));
+          })()
+        : null;
+      const checkOutTimestamp = row.checkOut
+        ? (() => {
+            const [year, month, day] = date.split("-").map(Number) as [
+              number,
+              number,
+              number,
+            ];
+            const [hours, minutes] = row.checkOut!.split(":").map(Number) as [
+              number,
+              number,
+            ];
+            return new Date(Date.UTC(year, month - 1, day, hours, minutes, 0));
+          })()
+        : null;
+
+      // Convert scheduledIn/scheduledOut from HH:mm:SS to TIME
+      // These are already in the correct format from the repository
+      // After the null check above, these are guaranteed to be non-null strings
+      const scheduledInTime = new Date(`1970-01-01T${row.scheduledIn}`);
+      const scheduledOutTime = new Date(`1970-01-01T${row.scheduledOut}`);
+
+      await tx.attendance.upsert({
+        where: {
+          employeeId_attendanceDate: {
+            employeeId: row.employeeId,
+            attendanceDate: new Date(date),
+          },
+        },
+        create: {
+          employeeId: row.employeeId,
+          attendanceDate: new Date(date),
+          shiftId: row.shiftId,
+          scheduledIn: scheduledInTime,
+          scheduledOut: scheduledOutTime,
+          checkIn: checkInTimestamp,
+          checkOut: checkOutTimestamp,
+          status: row.status,
+          requiredMinutes: row.requiredMinutes,
+          actualMinutes: row.actualMinutes,
+          missingMinutes: row.missingMinutes,
+          lateMinutes: row.lateMinutes,
+          workedMinutes: row.workedMinutes,
+          effectiveStart: row.effectiveStart,
+          punchCount: row.punchCount,
+          waiver: row.waiver, // Use the row's waiver value for new records
+        },
+        update: {
+          shiftId: row.shiftId,
+          scheduledIn: scheduledInTime,
+          scheduledOut: scheduledOutTime,
+          checkIn: checkInTimestamp,
+          checkOut: checkOutTimestamp,
+          status: row.status,
+          requiredMinutes: row.requiredMinutes,
+          actualMinutes: row.actualMinutes,
+          missingMinutes: row.missingMinutes,
+          lateMinutes: row.lateMinutes,
+          workedMinutes: row.workedMinutes,
+          effectiveStart: row.effectiveStart,
+          punchCount: row.punchCount,
+          // waiver is NOT included in update to preserve existing manual decisions
+        },
+      });
+    }
   });
 }

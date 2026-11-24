@@ -1,6 +1,7 @@
 import {
   getDailyAttendanceSource,
   getDailyAttendanceWaivers,
+  persistDailyAttendance,
   setAttendanceWaiver,
 } from "./attendance.repository";
 import { calculateDailyAttendance } from "./attendance.calculator";
@@ -88,6 +89,23 @@ export async function getDailyAttendance(date: string) {
     summary,
     employees,
   };
+}
+
+/**
+ * Recalculates one day's attendance and persists it to the `attendance`
+ * table. This is the same read-calculates-persist sequence the Daily
+ * Attendance API route performs; callers that change inputs the calculator
+ * reads (e.g. leave records) use it to refresh stored rows without waiting
+ * for someone to open that date's report.
+ *
+ * `persistDailyAttendance` upserts on (employeeId, attendanceDate) and never
+ * writes `waiver` on update, so stored waiver decisions are preserved.
+ */
+export async function refreshAndPersistDailyAttendance(
+  date: string,
+): Promise<void> {
+  const result = await getDailyAttendance(date);
+  await persistDailyAttendance(date, result.employees);
 }
 
 export interface AttendanceWaiverState {

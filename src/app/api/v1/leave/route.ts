@@ -167,6 +167,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (result.attendanceRefresh.failedDates.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Leave was created, but attendance refresh failed for ${result.attendanceRefresh.failedDates.length} date(s): ${result.attendanceRefresh.failedDates.join(", ")}.`,
+        },
+        { status: 500 },
+      );
+    }
+
     return NextResponse.json({ success: true, data: result.leave });
   } catch (error) {
     console.error("Leave create API failed:", error);

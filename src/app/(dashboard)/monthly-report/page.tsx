@@ -69,13 +69,6 @@ export default function MonthlyReportPage() {
         breadcrumbs={[{ label: "Monthly Report" }]}
       />
 
-      <MonthlyReportFilters
-        month={month}
-        onMonthChange={setMonth}
-        isRefreshing={isLoading}
-        onRefresh={refetch}
-      />
-
       {error ? (
         <div className="glass-card rounded-3xl">
           <ReportErrorState message={error} onRetry={refetch} />
@@ -84,7 +77,7 @@ export default function MonthlyReportPage() {
         <>
           <section
             aria-label="Monthly attendance summary"
-            className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
           >
             <StatCard
               label="Required Hours"
@@ -124,7 +117,18 @@ export default function MonthlyReportPage() {
             />
           </section>
 
-          <MonthlyAttendanceTable rows={rows} isLoading={isLoading} />
+          <MonthlyAttendanceTable
+            rows={rows}
+            isLoading={isLoading}
+            controls={
+              <MonthlyReportFilters
+                month={month}
+                onMonthChange={setMonth}
+                isRefreshing={isLoading}
+                onRefresh={refetch}
+              />
+            }
+          />
         </>
       )}
     </>

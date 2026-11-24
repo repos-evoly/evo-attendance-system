@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getDailyAttendanceSource,
   getDailyAttendanceWaivers,
+  persistDailyAttendance,
   setAttendanceWaiver,
   type AttendanceEmployee,
 } from "./attendance.repository";
@@ -9,7 +10,11 @@ import {
   getLeaveDetailsForDate,
   isEmployeeOnLeave,
 } from "../leave/leave.repository";
-import { getDailyAttendance, setDailyAttendanceWaiver } from "./attendance.service";
+import {
+  getDailyAttendance,
+  refreshAndPersistDailyAttendance,
+  setDailyAttendanceWaiver,
+} from "./attendance.service";
 
 /**
  * Both repositories are mocked so the waiver guard and the leave-detail wiring
@@ -18,6 +23,7 @@ import { getDailyAttendance, setDailyAttendanceWaiver } from "./attendance.servi
 vi.mock("./attendance.repository", () => ({
   getDailyAttendanceSource: vi.fn(),
   getDailyAttendanceWaivers: vi.fn(),
+  persistDailyAttendance: vi.fn(),
   setAttendanceWaiver: vi.fn(),
 }));
 
@@ -32,6 +38,7 @@ const mockIsEmployeeOnLeave = vi.mocked(isEmployeeOnLeave);
 const mockGetDailyAttendanceSource = vi.mocked(getDailyAttendanceSource);
 const mockGetDailyAttendanceWaivers = vi.mocked(getDailyAttendanceWaivers);
 const mockGetLeaveDetailsForDate = vi.mocked(getLeaveDetailsForDate);
+const mockPersistDailyAttendance = vi.mocked(persistDailyAttendance);
 
 const USER_ID = BigInt(42);
 const DATE = "2026-11-03";
@@ -43,6 +50,7 @@ beforeEach(() => {
   mockGetDailyAttendanceSource.mockResolvedValue({ employees: [], punches: [] });
   mockGetDailyAttendanceWaivers.mockResolvedValue([]);
   mockGetLeaveDetailsForDate.mockResolvedValue([]);
+  mockPersistDailyAttendance.mockResolvedValue(undefined);
 });
 
 describe("setDailyAttendanceWaiver", () => {
@@ -191,6 +199,41 @@ describe("getDailyAttendance leave details", () => {
 
     expect(result.employees[0]?.status).toBe("WEEKEND");
     expect(result.employees[0]?.leave).toBeNull();
+  });
+});
+
+describe("refreshAndPersistDailyAttendance", () => {
+  it("persists the calculated rows for the requested date", async () => {
+    const employee: AttendanceEmployee = {
+      employeeId: 1,
+      fullName: "Test Employee",
+      shiftId: 1,
+      shiftName: "Morning Shift",
+      timeIn: "09:00:00",
+      timeOut: "15:00:00",
+      allowanceMinutes: 15,
+      hireDate: "2019-01-01",
+    };
+    mockGetDailyAttendanceSource.mockResolvedValue({
+      employees: [employee],
+      punches: [],
+    });
+
+    await refreshAndPersistDailyAttendance(DATE);
+
+    expect(mockPersistDailyAttendance).toHaveBeenCalledTimes(1);
+    const [persistedDate, rows] = mockPersistDailyAttendance.mock.calls[0]!;
+    expect(persistedDate).toBe(DATE);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ employeeId: 1, status: "ABSENT" });
+  });
+
+  it("propagates persistence failures to the caller", async () => {
+    mockPersistDailyAttendance.mockRejectedValue(new Error("db down"));
+
+    await expect(
+      refreshAndPersistDailyAttendance(DATE),
+    ).rejects.toThrow("db down");
   });
 });
 

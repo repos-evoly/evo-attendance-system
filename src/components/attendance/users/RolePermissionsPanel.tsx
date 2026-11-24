@@ -47,12 +47,12 @@ const ROLE_PERMISSIONS: Record<
       "Attendance — view",
       "Waivers — grant and revoke",
       "Leaves — create and cancel",
+      "Device Sync — run sync",
     ],
     cannot: [
       "Public Holidays — cannot manage holidays",
       "Shift Assignments — cannot manage shift assignments",
       "User Management — no access to user accounts or roles",
-      "Device Sync — cannot run sync",
     ],
   },
   VIEWER: {
@@ -64,6 +64,7 @@ const ROLE_PERMISSIONS: Record<
       "Leaves — view",
       "Public Holidays — view",
       "Shift Assignments — view",
+      "Device Sync — run sync",
     ],
     cannot: [
       "Waivers — cannot grant or revoke",
@@ -71,7 +72,6 @@ const ROLE_PERMISSIONS: Record<
       "Public Holidays — cannot manage",
       "Shift Assignments — cannot manage",
       "User Management — no access to user accounts or roles",
-      "Device Sync — cannot run sync",
     ],
   },
 };

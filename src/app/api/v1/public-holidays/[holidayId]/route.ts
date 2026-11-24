@@ -119,6 +119,16 @@ export async function PATCH(
       );
     }
 
+    if (result.attendanceRefresh.failedDates.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Public holiday was updated, but attendance refresh failed for ${result.attendanceRefresh.failedDates.length} date(s): ${result.attendanceRefresh.failedDates.join(", ")}.`,
+        },
+        { status: 500 },
+      );
+    }
+
     return NextResponse.json({ success: true, data: result.holiday });
   } catch (error) {
     console.error("Public holiday update API failed:", error);
@@ -169,6 +179,16 @@ export async function POST(
       return NextResponse.json(
         { success: false, message: result.error.message },
         { status },
+      );
+    }
+
+    if (result.attendanceRefresh.failedDates.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Public holiday was reactivated, but attendance refresh failed for ${result.attendanceRefresh.failedDates.length} date(s): ${result.attendanceRefresh.failedDates.join(", ")}.`,
+        },
+        { status: 500 },
       );
     }
 
@@ -261,6 +281,16 @@ export async function DELETE(
       return NextResponse.json(
         { success: false, message: result.error.message },
         { status },
+      );
+    }
+
+    if (result.attendanceRefresh.failedDates.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Public holiday was cancelled, but attendance refresh failed for ${result.attendanceRefresh.failedDates.length} date(s): ${result.attendanceRefresh.failedDates.join(", ")}.`,
+        },
+        { status: 500 },
       );
     }
 

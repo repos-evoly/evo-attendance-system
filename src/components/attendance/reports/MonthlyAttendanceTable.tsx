@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { ArrowRight, ArrowUpDown, ChevronDown, Search } from "lucide-react";
 import type { MonthlyAttendanceRow } from "@/types/attendance/monthly-attendance.types";
 import {
@@ -28,6 +28,8 @@ const SORT_COLUMNS: readonly { key: SortKey; label: string }[] = [
 interface MonthlyAttendanceTableProps {
   rows: MonthlyAttendanceRow[];
   isLoading: boolean;
+  /** Period controls (month picker + refresh) rendered before the search. */
+  controls?: ReactNode;
 }
 
 /**
@@ -38,6 +40,7 @@ interface MonthlyAttendanceTableProps {
 export function MonthlyAttendanceTable({
   rows,
   isLoading,
+  controls,
 }: MonthlyAttendanceTableProps) {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("missingMinutes");
@@ -68,70 +71,82 @@ export function MonthlyAttendanceTable({
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="relative w-full max-w-sm">
-        <Search
-          size={18}
-          aria-hidden
-          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-        />
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search by employee name…"
-          aria-label="Search employees"
-          disabled={isLoading}
-          className="glass-card w-full rounded-2xl py-3 pl-11 pr-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:ring-2 focus:ring-violet-300 disabled:cursor-not-allowed disabled:opacity-60"
-        />
-      </div>
-
-      <div className="glass-card overflow-hidden rounded-3xl">
-        {isLoading ? (
-          <ReportLoadingState message="Loading monthly attendance…" />
-        ) : visibleRows.length === 0 ? (
-          <ReportEmptyState
-            title={query.trim() ? "No matching employees" : "No data for this month"}
-            message={
-              query.trim()
-                ? "Try a different employee name."
-                : "There are no attendance records to display for this month."
-            }
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200/70 text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-3.5 pl-5 pr-4 font-semibold">Employee</th>
-                  <th className="hidden py-3.5 pr-4 font-semibold md:table-cell">
-                    ID
-                  </th>
-                  {SORT_COLUMNS.map((column) => (
-                    <SortableHeader
-                      key={column.key}
-                      label={column.label}
-                      isActive={sortKey === column.key}
-                      direction={sortDirection}
-                      onToggle={() => toggleSort(column.key)}
-                    />
-                  ))}
-                  <th className="hidden py-3.5 pr-4 font-semibold xl:table-cell">
-                    Required hours
-                  </th>
-                  <th className="py-3.5 pr-5">
-                    <span className="sr-only">Open details</span>
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {visibleRows.map((row) => (
-                  <MonthlyRow key={row.employeeId} row={row} />
-                ))}
-              </tbody>
-            </table>
+      <div className="glass-card rounded-3xl">
+        <div className="sticky top-4 z-20 flex flex-wrap items-center gap-3 rounded-t-3xl border-b border-slate-200/70 bg-white/70 px-5 py-4 backdrop-blur-xl">
+          <div className="relative w-full max-w-sm">
+            <Search
+              size={18}
+              aria-hidden
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search by employee name…"
+              aria-label="Search employees"
+              disabled={isLoading}
+              className="glass-card h-11 w-full rounded-2xl pl-11 pr-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:ring-2 focus:ring-violet-300 disabled:cursor-not-allowed disabled:opacity-60"
+            />
           </div>
-        )}
+
+          <p className="ml-auto text-sm text-slate-500">
+            {visibleRows.length === rows.length
+              ? `${rows.length} employees`
+              : `${visibleRows.length} of ${rows.length} employees`}
+          </p>
+
+          {controls}
+        </div>
+
+        <div className="overflow-hidden rounded-b-3xl">
+          {isLoading ? (
+            <ReportLoadingState message="Loading monthly attendance…" />
+          ) : visibleRows.length === 0 ? (
+            <ReportEmptyState
+              title={query.trim() ? "No matching employees" : "No data for this month"}
+              message={
+                query.trim()
+                  ? "Try a different employee name."
+                  : "There are no attendance records to display for this month."
+              }
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200/70 text-xs uppercase tracking-wide text-slate-500">
+                    <th className="py-3.5 pl-5 pr-4 font-semibold">Employee</th>
+                    <th className="hidden py-3.5 pr-4 font-semibold md:table-cell">
+                      ID
+                    </th>
+                    {SORT_COLUMNS.map((column) => (
+                      <SortableHeader
+                        key={column.key}
+                        label={column.label}
+                        isActive={sortKey === column.key}
+                        direction={sortDirection}
+                        onToggle={() => toggleSort(column.key)}
+                      />
+                    ))}
+                    <th className="hidden py-3.5 pr-4 font-semibold xl:table-cell">
+                      Required hours
+                    </th>
+                    <th className="py-3.5 pr-5">
+                      <span className="sr-only">Open details</span>
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {visibleRows.map((row) => (
+                    <MonthlyRow key={row.employeeId} row={row} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </section>
   );

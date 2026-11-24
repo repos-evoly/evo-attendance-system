@@ -23,6 +23,9 @@ export interface DailyAttendanceRow {
   employeeId: number;
   fullName: string;
   shiftName: string | null;
+  shiftId: number | null;
+  scheduledIn: string | null;
+  scheduledOut: string | null;
   checkIn: string | null;
   checkOut: string | null;
   punchCount: number;
@@ -112,7 +115,7 @@ function formatDate(date: string): string {
 /**
  * Friday and Saturday are weekends.
  */
-function isWeekend(date: string): boolean {
+export function isWeekend(date: string): boolean {
   const day = new Date(`${date}T00:00:00.000Z`).getUTCDay();
 
   return day === 5 || day === 6;
@@ -291,8 +294,8 @@ export function calculateDailyAttendance({
     const firstIn = inPunches[0] ?? null;
     const lastOut = outPunches.length > 0 ? outPunches[outPunches.length - 1] : null;
 
-    const checkIn = firstIn ? formatTime(firstIn.timestamp) : null;
-    const checkOut = lastOut ? formatTime(lastOut.timestamp) : null;
+    let checkIn = firstIn ? formatTime(firstIn.timestamp) : null;
+    let checkOut = lastOut ? formatTime(lastOut.timestamp) : null;
 
     // Calculate required minutes from shift duration
     let requiredMinutes = employee.timeIn && employee.timeOut
@@ -333,7 +336,7 @@ export function calculateDailyAttendance({
     }
 
     // Calculate total time between first IN and last OUT (backward compatibility)
-    const workedMinutes =
+    let workedMinutes =
       firstIn && lastOut
         ? Math.floor(
             (libyaDate(lastOut.timestamp).getTime() -
@@ -439,15 +442,15 @@ export function calculateDailyAttendance({
       status = "PRESENT";
     }
 
-    // Approved leave takes precedence over any status, punch or waiver, but NOT
-    // over public holidays or weekends. The raw punch fields stay untouched so
-    // the original device records remain visible.
+    // Approved leave takes precedence over device punches: an ACTIVE leave
+    // covering this date makes the day LEAVE even when punches exist. The raw
+    // punches are never touched - they are simply not reported for a leave
+    // day. Leave never overrides public holidays or weekends.
     //
     // VACATION and SICK_LEAVE remove the day from Required Minutes entirely
     // (required = actual = missing = 0). UNPAID is an authorised absence: the
     // shift's scheduled minutes stay in Required Minutes, nothing is worked
     // (actual = 0), and the whole scheduled duration counts as missing/discount.
-    // Every leave type keeps the LEAVE status, never ABSENT.
     if (status !== "PUBLIC_HOLIDAY" && status !== "WEEKEND") {
       const leaveDay = findLeaveDay(
         leavesByEmployee.get(employee.employeeId),
@@ -458,6 +461,10 @@ export function calculateDailyAttendance({
       if (leaveDay) {
         status = "LEAVE";
         lateMinutes = 0;
+        checkIn = null;
+        checkOut = null;
+        workedMinutes = 0;
+        effectiveStart = null;
 
         if (leaveDay.leaveType === "UNPAID") {
           actualMinutes = 0;
@@ -474,6 +481,9 @@ export function calculateDailyAttendance({
       employeeId: employee.employeeId,
       fullName: employee.fullName,
       shiftName: employee.shiftName,
+      shiftId: employee.shiftId,
+      scheduledIn: employee.timeIn,
+      scheduledOut: employee.timeOut,
       checkIn,
       checkOut,
       punchCount: userPunches.length,

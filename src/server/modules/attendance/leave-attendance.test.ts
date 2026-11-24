@@ -72,6 +72,7 @@ describe("daily attendance with leave", () => {
     (leaveType) => {
       const row = calculateDaily({
         leaves: [leave(THURSDAY, THURSDAY, leaveType)],
+        punches: [], // No punches - leave should produce LEAVE
       });
 
       expect(row, leaveType).toMatchObject({
@@ -80,16 +81,16 @@ describe("daily attendance with leave", () => {
         actualMinutes: 0,
         missingMinutes: 0,
         lateMinutes: 0,
-        // The raw device punches are never deleted or modified.
-        checkIn: "09:00",
-        checkOut: "15:00",
-        punchCount: 2,
+        punchCount: 0,
       });
     },
   );
 
   it("keeps an UNPAID day's scheduled minutes as required and counts them as missing", () => {
-    const row = calculateDaily({ leaves: [leave(THURSDAY, THURSDAY, "UNPAID")] });
+    const row = calculateDaily({
+      leaves: [leave(THURSDAY, THURSDAY, "UNPAID")],
+      punches: [], // No punches - leave should produce LEAVE
+    });
 
     expect(row).toMatchObject({
       // The status stays LEAVE, never ABSENT.
@@ -100,10 +101,7 @@ describe("daily attendance with leave", () => {
       // The whole scheduled duration is discounted.
       missingMinutes: 360,
       lateMinutes: 0,
-      // The raw device punches are never deleted or modified.
-      checkIn: "09:00",
-      checkOut: "15:00",
-      punchCount: 2,
+      punchCount: 0,
     });
   });
 
@@ -135,10 +133,11 @@ describe("daily attendance with leave", () => {
     expect(row?.requiredMinutes).toBe(360);
   });
 
-  it("lets leave take precedence over a stored waiver", () => {
+  it("lets leave take precedence over a stored waiver when there are no punches", () => {
     const row = calculateDaily({
       leaves: [leave(THURSDAY, THURSDAY)],
       waivers: new Map<string, boolean>([[`1|${THURSDAY}`, true]]),
+      punches: [], // No punches - leave should take precedence
     });
 
     expect(row).toMatchObject({
@@ -179,6 +178,134 @@ describe("daily attendance with leave", () => {
       waiver: true,
     });
   });
+
+  it("produces LEAVE when approved leave exists with no punches", () => {
+    const row = calculateDaily({
+      leaves: [leave(THURSDAY, THURSDAY)],
+      punches: [],
+    });
+
+    expect(row).toMatchObject({
+      status: "LEAVE",
+      requiredMinutes: 0,
+      actualMinutes: 0,
+      missingMinutes: 0,
+      lateMinutes: 0,
+      punchCount: 0,
+    });
+  });
+
+  it("lets approved leave take precedence over IN and OUT punches", () => {
+    const row = calculateDaily({
+      leaves: [leave(THURSDAY, THURSDAY)],
+      punches: fullDayPunches,
+    });
+
+    expect(row).toMatchObject({
+      status: "LEAVE",
+      requiredMinutes: 0,
+      actualMinutes: 0,
+      missingMinutes: 0,
+      lateMinutes: 0,
+      workedMinutes: 0,
+      checkIn: null,
+      checkOut: null,
+      effectiveStart: null,
+    });
+  });
+
+  it("lets approved leave take precedence over late IN and OUT punches", () => {
+    const row = calculateDaily({
+      leaves: [leave(THURSDAY, THURSDAY)],
+      punches: [
+        punch("1", `${THURSDAY} 09:20:00`, 0), // late IN
+        punch("1", `${THURSDAY} 15:00:00`, 1),
+      ],
+    });
+
+    expect(row).toMatchObject({
+      status: "LEAVE",
+      requiredMinutes: 0,
+      actualMinutes: 0,
+      missingMinutes: 0,
+      lateMinutes: 0,
+      workedMinutes: 0,
+      checkIn: null,
+      checkOut: null,
+    });
+  });
+
+  it("lets approved leave take precedence over an IN-only punch", () => {
+    const row = calculateDaily({
+      leaves: [leave(THURSDAY, THURSDAY)],
+      punches: [punch("1", `${THURSDAY} 09:10:00`, 0)], // IN only
+    });
+
+    expect(row).toMatchObject({
+      status: "LEAVE",
+      requiredMinutes: 0,
+      actualMinutes: 0,
+      missingMinutes: 0,
+      lateMinutes: 0,
+      workedMinutes: 0,
+      checkIn: null,
+      checkOut: null,
+    });
+  });
+
+  it("lets approved leave take precedence over an OUT-only punch", () => {
+    const row = calculateDaily({
+      leaves: [leave(THURSDAY, THURSDAY)],
+      punches: [punch("1", `${THURSDAY} 16:10:00`, 1)], // OUT only
+    });
+
+    expect(row).toMatchObject({
+      status: "LEAVE",
+      requiredMinutes: 0,
+      actualMinutes: 0,
+      missingMinutes: 0,
+      lateMinutes: 0,
+      workedMinutes: 0,
+      checkIn: null,
+      checkOut: null,
+    });
+  });
+
+  it("keeps UNPAID leave semantics when punches exist", () => {
+    const row = calculateDaily({
+      leaves: [leave(THURSDAY, THURSDAY, "UNPAID")],
+      punches: fullDayPunches,
+    });
+
+    expect(row).toMatchObject({
+      status: "LEAVE",
+      // UNPAID keeps the scheduled minutes as a discount.
+      requiredMinutes: 360,
+      actualMinutes: 0,
+      missingMinutes: 360,
+      lateMinutes: 0,
+      workedMinutes: 0,
+      checkIn: null,
+      checkOut: null,
+    });
+  });
+
+  it("lets punches determine the result when the leave is cancelled", () => {
+    // A cancelled leave never reaches the calculator: the repository only
+    // returns ACTIVE periods, so the input here is simply "no leave".
+    const row = calculateDaily({ punches: fullDayPunches });
+
+    expect(row).toMatchObject({
+      status: "PRESENT",
+      requiredMinutes: 360,
+      actualMinutes: 360,
+      missingMinutes: 0,
+      lateMinutes: 0,
+      workedMinutes: 360,
+      checkIn: "09:00",
+      checkOut: "15:00",
+    });
+  });
 });
 
 describe("monthly attendance with leave", () => {
@@ -190,8 +317,6 @@ describe("monthly attendance with leave", () => {
    * November 2026 working days up to the 15th: 01-05, 08-12, 15 -> 11 days.
    * Each is a 360-minute shift, so the baseline Required Minutes is 3960.
    */
-  const BASELINE_REQUIRED = 3960;
-
   function pinNow() {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-15T10:00:00.000Z"));

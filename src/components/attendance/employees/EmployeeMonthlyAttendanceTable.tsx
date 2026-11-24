@@ -58,7 +58,7 @@ const ROW_TINT: Partial<Record<AttendanceStatus, string>> = {
   LATE: "bg-orange-50/50 hover:bg-orange-50",
   ABSENT: "bg-rose-50/50 hover:bg-rose-50",
   MISSING_OUT: "bg-violet-50/50 hover:bg-violet-50",
-  LEAVE: "bg-teal-50/50 hover:bg-teal-50",
+  LEAVE: "bg-sky-50/50 hover:bg-sky-50",
 };
 
 interface EmployeeMonthlyAttendanceTableProps {

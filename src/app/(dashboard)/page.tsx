@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowRight,
   CalendarDays,
@@ -59,6 +59,21 @@ export default function HomeOverviewPage() {
 
   const summary = daily.data?.summary ?? null;
   const activeHoliday = findActiveHolidayForToday(publicHolidays.holidays);
+
+  const { refetch: refetchDaily } = daily;
+  const { refetch: refetchMonthly } = monthly;
+
+  // A completed sync writes new punches, so reload the attendance views this
+  // page displays. Failed/already-running outcomes never reach this branch,
+  // and each refetch issues exactly one request per hook.
+  const syncCompleted = syncStatus.runFeedback?.outcome === "completed";
+
+  useEffect(() => {
+    if (!syncCompleted) return;
+
+    refetchDaily();
+    refetchMonthly();
+  }, [syncCompleted, refetchDaily, refetchMonthly]);
 
   return (
     <>
