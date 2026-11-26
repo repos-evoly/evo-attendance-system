@@ -193,7 +193,8 @@ export function sessionCookieOptions(): {
     httpOnly: true,
     sameSite: "lax",
     // `Secure` in production so the session cookie is never sent over HTTP.
-    secure: process.env.NODE_ENV === "production",
+    //secure: process.env.NODE_ENV === "production",
+    secure: false,
     path: "/",
     maxAge: SESSION_MAX_AGE_SECONDS,
   };
