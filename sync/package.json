@@ -1,4 +1,3 @@
-
 {
   "name": "attendance-sync",
   "version": "1.0.0",
@@ -21,7 +20,8 @@
   "type": "module",
   "dependencies": {
     "@graphland/zkteco": "0.1.0",
-    "better-sqlite3": "^13.0.3"
+    "better-sqlite3": "^13.0.3",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
